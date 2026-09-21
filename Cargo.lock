@@ -15,7 +15,7 @@ source = "git+https://codeberg.org/thefossguy/tfg-helpers.git?tag=v0.2.0#188de2b
 
 [[package]]
 name = "update-uboot-tfg"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "lexopt",
  "tfg-helpers",
