@@ -229,7 +229,7 @@ pub fn configure() -> Result<UpdateUbootConfig, Box<dyn Error>> {
                     lexopt_parser.value()?.string()?,
                 )?);
             }
-            Long("--uboot-version") => {
+            Long("uboot-version") => {
                 let specified_new_uboot_version = lexopt_parser.value()?.string()?;
                 if specified_new_uboot_version.is_empty() {
                     return Err("`--uboot-version` cannot be empty".into());
