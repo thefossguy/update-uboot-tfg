@@ -215,6 +215,7 @@ pub fn configure() -> Result<UpdateUbootConfig, Box<dyn Error>> {
 
     let mut board = None;
     let mut uboot_config = None;
+    let mut new_uboot_version = None;
 
     let mut lexopt_parser = lexopt::Parser::from_env();
     while let Some(arg) = lexopt_parser.next()? {
@@ -228,8 +229,30 @@ pub fn configure() -> Result<UpdateUbootConfig, Box<dyn Error>> {
                     lexopt_parser.value()?.string()?,
                 )?);
             }
+            Long("--uboot-version") => {
+                let specified_new_uboot_version = lexopt_parser.value()?.string()?;
+                if specified_new_uboot_version.is_empty() {
+                    return Err("`--uboot-version` cannot be empty".into());
+                }
+                new_uboot_version = Some(specified_new_uboot_version);
+            }
             _ => return Err(arg.unexpected().into()),
         }
+    }
+
+    let Some(new_uboot_version) = new_uboot_version else {
+        return Err("`--uboot-version` is required".into());
+    };
+    let Ok(current_uboot_version) =
+        std::fs::read_to_string("/proc/device-tree/chosen/u-boot,version")
+    else {
+        return Err("Could not determine the current U-Boot version".into());
+    };
+    if current_uboot_version == new_uboot_version {
+        eprintln!(
+            "Current U-Boot version '{current_uboot_version}' and new U-Boot version '{new_uboot_version}' are the same, nothing to do."
+        );
+        std::process::exit(0);
     }
 
     let Some(board) = board else {
