@@ -1,0 +1,9 @@
+[package]
+name = "update-uboot-tfg"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-2.0-only" # https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+[dependencies]
+lexopt = "0.3.2"
+tfg-helpers = { git = "https://codeberg.org/thefossguy/tfg-helpers.git", tag = "v0.2.0" }
