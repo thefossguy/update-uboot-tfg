@@ -51,36 +51,7 @@ fn update_uboot_by_copying_files_to_efi_part(
     copy_dir_recursive(&source, &destination)
 }
 
-fn update_uboot_raspberry_pi_4_model_b(
-    update_uboot_config: &UpdateUbootConfig,
-) -> Result<(), Box<dyn Error>> {
-    update_uboot_by_copying_files_to_efi_part(update_uboot_config)
-}
-
-fn update_uboot_raspberry_pi_5_model_b(
-    update_uboot_config: &UpdateUbootConfig,
-) -> Result<(), Box<dyn Error>> {
-    update_uboot_by_copying_files_to_efi_part(update_uboot_config)
-}
-
-fn flash_uboot_to_emmc(mmc_device: &str, uboot_bin: &str) -> Result<(), Box<dyn Error>> {
-    let mut dd_cmd = Command::new("dd");
-    dd_cmd.args([
-        format!("of={mmc_device}").as_str(),
-        format!("if={uboot_bin}").as_str(),
-        "bs=512",
-        "seek=64",
-        "conv=notrunc,fsync",
-    ]);
-    let dd_process_result = log_then_status!(dd_cmd);
-    if dd_process_result.was_process_successful() {
-        Ok(())
-    } else {
-        Err("The `dd` command to flash u-boot failed".into())
-    }
-}
-
-fn update_uboot_rk3588_family(
+fn update_uboot_by_flashing_to_dev_mtd0(
     update_uboot_config: &UpdateUbootConfig,
 ) -> Result<(), Box<dyn Error>> {
     if let Ok(dev_mtd0_metadata) = fs::metadata("/dev/mtd0")
@@ -90,7 +61,7 @@ fn update_uboot_rk3588_family(
         flashcp_cmd.args([
             "-v",
             &update_uboot_config.uboot_config.uboot_path,
-            &update_uboot_config.vfat_filesystem.block_dev,
+            "/dev/mtd0",
         ]);
         let flashcp_process_result = log_then_status!(flashcp_cmd);
         if flashcp_process_result.was_process_successful() {
@@ -98,55 +69,50 @@ fn update_uboot_rk3588_family(
         } else {
             Err("The `flashcp` command failed".into())
         }
-    } else if let Ok(dev_mmcblk0_metadata) = fs::metadata("/dev/mmcblk0")
-        && dev_mmcblk0_metadata.file_type().is_block_device()
-    {
-        flash_uboot_to_emmc(
-            &update_uboot_config.vfat_filesystem.block_dev,
-            &update_uboot_config.uboot_config.uboot_path,
-        )
-    } else if let Ok(dev_mmcblk1_metadata) = fs::metadata("/dev/mmcblk1")
-        && dev_mmcblk1_metadata.file_type().is_block_device()
-    {
-        flash_uboot_to_emmc(
-            &update_uboot_config.vfat_filesystem.block_dev,
-            &update_uboot_config.uboot_config.uboot_path,
-        )
     } else {
-        Err("Neither `/dev/mtd0`, `/dev/mmcblk0` nor `/dev/mmcblk1` exist; not sure what to do here".into())
+        Err("Either '/dev/mtd0' doesn't exist or is not a character device".into())
     }
 }
 
-fn update_uboot_cm3588(update_uboot_config: &UpdateUbootConfig) -> Result<(), Box<dyn Error>> {
-    update_uboot_rk3588_family(update_uboot_config)
-}
-
-fn update_uboot_nanopc_t6(update_uboot_config: &UpdateUbootConfig) -> Result<(), Box<dyn Error>> {
-    update_uboot_rk3588_family(update_uboot_config)
-}
-
-fn update_uboot_orange_pi_5(update_uboot_config: &UpdateUbootConfig) -> Result<(), Box<dyn Error>> {
-    update_uboot_rk3588_family(update_uboot_config)
-}
-
-fn update_uboot_rock_5_model_b(
+fn update_uboot_by_writing_to_efi_part_block_dev(
     update_uboot_config: &UpdateUbootConfig,
 ) -> Result<(), Box<dyn Error>> {
-    update_uboot_rk3588_family(update_uboot_config)
+    let vfat_filesystem_block_dev = &update_uboot_config.vfat_filesystem.block_dev;
+    if let Ok(block_dev_metadata) = fs::metadata(vfat_filesystem_block_dev)
+        && block_dev_metadata.file_type().is_block_device()
+    {
+        let output_file = format!("of={vfat_filesystem_block_dev}");
+        let input_file = format!("if={}", update_uboot_config.uboot_config.uboot_path);
+        let mut dd_cmd = Command::new("dd");
+        dd_cmd.args([
+            &output_file,
+            &input_file,
+            "bs=512",
+            "seek=64",
+            "conv=notrunc,fsync",
+        ]);
+        let dd_process_result = log_then_status!(dd_cmd);
+        if dd_process_result.was_process_successful() {
+            Ok(())
+        } else {
+            Err("The `dd` command to flash u-boot failed".into())
+        }
+    } else {
+        Err(format!("Either the block device '{vfat_filesystem_block_dev}' ").into())
+    }
 }
 
 pub fn update_uboot(update_uboot_config: &UpdateUbootConfig) -> Result<(), Box<dyn Error>> {
     match update_uboot_config.board {
-        SupportedBoards::RaspberryPi4ModelB => {
-            update_uboot_raspberry_pi_4_model_b(update_uboot_config)
-        }
-        SupportedBoards::RaspberryPi5ModelB => {
-            update_uboot_raspberry_pi_5_model_b(update_uboot_config)
+        SupportedBoards::RaspberryPi4ModelB | SupportedBoards::RaspberryPi5ModelB => {
+            update_uboot_by_copying_files_to_efi_part(update_uboot_config)
         }
 
-        SupportedBoards::CM3588 => update_uboot_cm3588(update_uboot_config),
-        SupportedBoards::NanoPCT6 => update_uboot_nanopc_t6(update_uboot_config),
-        SupportedBoards::OrangePi5 => update_uboot_orange_pi_5(update_uboot_config),
-        SupportedBoards::Rock5ModelB => update_uboot_rock_5_model_b(update_uboot_config),
+        SupportedBoards::CM3588 => {
+            update_uboot_by_writing_to_efi_part_block_dev(update_uboot_config)
+        }
+        SupportedBoards::NanoPCT6 | SupportedBoards::OrangePi5 | SupportedBoards::Rock5ModelB => {
+            update_uboot_by_flashing_to_dev_mtd0(update_uboot_config)
+        }
     }
 }
