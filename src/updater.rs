@@ -90,7 +90,7 @@ fn update_uboot_rk3588_family(
         flashcp_cmd.args([
             "-v",
             &update_uboot_config.uboot_config.uboot_path,
-            &update_uboot_config.vfat_filesystem.mount_point,
+            &update_uboot_config.vfat_filesystem.block_dev,
         ]);
         let flashcp_process_result = log_then_status!(flashcp_cmd);
         if flashcp_process_result.was_process_successful() {
