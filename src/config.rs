@@ -234,7 +234,7 @@ pub fn configure() -> Result<UpdateUbootConfig, Box<dyn Error>> {
                 if specified_new_uboot_version.is_empty() {
                     return Err("`--uboot-version` cannot be empty".into());
                 }
-                new_uboot_version = Some(format!("{specified_new_uboot_version}\0"));
+                new_uboot_version = Some(specified_new_uboot_version);
             }
             _ => return Err(arg.unexpected().into()),
         }
@@ -243,9 +243,11 @@ pub fn configure() -> Result<UpdateUbootConfig, Box<dyn Error>> {
     let Some(new_uboot_version) = new_uboot_version else {
         return Err("`--uboot-version` is required".into());
     };
-    let Ok(current_uboot_version) =
+    let current_uboot_version = if let Ok(current_uboot_version) =
         std::fs::read_to_string("/proc/device-tree/chosen/u-boot,version")
-    else {
+    {
+        current_uboot_version.trim_end_matches('\0').to_string()
+    } else {
         return Err("Could not determine the current U-Boot version".into());
     };
     if current_uboot_version == new_uboot_version {
