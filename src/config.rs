@@ -234,7 +234,7 @@ pub fn configure() -> Result<UpdateUbootConfig, Box<dyn Error>> {
                 if specified_new_uboot_version.is_empty() {
                     return Err("`--uboot-version` cannot be empty".into());
                 }
-                new_uboot_version = Some(specified_new_uboot_version);
+                new_uboot_version = Some(format!("{specified_new_uboot_version}\0"));
             }
             _ => return Err(arg.unexpected().into()),
         }
